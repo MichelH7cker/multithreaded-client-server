@@ -1,36 +1,105 @@
 #include "server.hpp"
 
 #define MAX_CONNECTIONS 50
+#define INSTANT_SERVER_RESPONSE false
 
-void handle_client(int client_socket){
-    // Communication with the client
+vector<int> client_sockets;
+vector<thread> clients_threads;
+mutex mtx;
+
+void broadcastMessage(int server_socket, char *message) {
+    size_t message_len = strlen(message);
+    for (int client : client_sockets){
+        int bytes_send = send(client, message, message_len, 0);
+    }
+}
+
+void broadcastServerMessage(int server_socket){
+    char buffer[1024];
+    int SHUTDOWN = 0;
+    while (true){
+        cin.getline(buffer, 1024);
+
+        // FORMAT
+        string response = " - [! ADM !]: " + (string) buffer;
+        char message[response.length() + 1];
+
+        // SEND MESSAGE
+        broadcastMessage(server_socket, strcpy(message, response.c_str()));
+    }
+}
+
+void handleClient(int client_socket, int server_socket){
+    char username[128];
+    memset(username, 0, sizeof(username));
+
+    // RECEIVE THE USERNAME OF CLIENT
+    read(client_socket, username, sizeof(username) - 1);
+    cout << "[+] (" << username << ") connected" << endl;
+
+    // ADD TO VECTOR
+    mtx.lock();
+    client_sockets.push_back(client_socket);
+    mtx.unlock();
+        
+    // COMMUNICATION
     char buffer[1024];
     string message;
     while (true) {
-        // Receive data from the client
+        // RECEIVE DATA 
         ssize_t bytesRead = recv(client_socket, buffer, sizeof(buffer), 0);
+        
+        // DELETE CLIENT FROM VECTOR
         if (bytesRead <= 0) {
+            mtx.lock();
+            auto it = find(client_sockets.begin(), client_sockets.end(), client_socket);
+            if (it != client_sockets.end()) {
+                client_sockets.erase(it);
+            }
+            mtx.unlock();
+            
+            cout << " [+] (" << username << ") disconnected.\n" << endl;
             break;
         }
-
-        // receive msg
         buffer[bytesRead] = '\0';
-        printf("\t - Server side received: %s\n", buffer);
 
-        // send msg
-        message = "Server received message";
-        send(client_socket, message.c_str(), message.length(), 0);
+        // SEND MESSAGE OF ONE CLIENT TO ALL CLIENTS
+        string response = " - (" + (string) username + "): " + buffer;
+        char message[response.length() + 1];
+        broadcastMessage(server_socket, strcpy(message, response.c_str()));
+
+        // SERVER TERMINAL
+        printf("%s\n", response.c_str());
+    }
+    close(client_socket);
+}
+
+void acceptClients(int server_socket){
+    while (true) {
+        // ACCEPT CONNECTIONS
+        int new_client_socket = accept(server_socket, nullptr, nullptr);
+
+        if (new_client_socket == -1) {
+            cerr << "[-] error accepting connection." << endl;
+            continue;
+        }
+
+        // add new client to threads vector
+        // handle new client
+        thread clientThread(handleClient, new_client_socket, server_socket);
+        clients_threads.push_back(move(clientThread));
     }
 }
+
 
 int main(){
     // CREATE SOCKET DESCRIPTOR 
     int server_socket = socket(AF_INET, SOCK_STREAM, 0); // 0 to tcp protocol
     if (server_socket < 0){
-        perror("[-] Error in socket creation.\n");
+        perror("[-] error in socket creation.\n");
         exit(EXIT_FAILURE);
     }
-    printf("[+] Server socket created.\n");
+    printf("[+] server created.\n");
     
     // CREATE SOCKET ADDRESS
     struct sockaddr_in address;
@@ -41,38 +110,28 @@ int main(){
     // BIND SOCKET 
     int bind_code = bind(server_socket, (struct sockaddr*)&address, sizeof(sockaddr));
     if (bind_code < 0){
-        perror("[-] Fail to bind socket.\n");
+        perror("[-] fail to bind.\n");
         exit(EXIT_FAILURE);
     }
-    printf("[+] Socket binded.\n");
+    printf("[+] server binded.\n");
 
-    // Listen on the socket, with MAX_CONNECTIONS
-    if (listen(server_socket, MAX_CONNECTIONS) == 0){
-        printf("[+] Socket server is listening.\n");
-    } else {
-        printf("[-] Error in listening\n");
+    // LISTEN TO CONNECTIONS 
+    if (listen(server_socket, MAX_CONNECTIONS) < 0){
+        printf("[-] error in listening\n");
     }
+    printf("[+] server is listening to connections...\n");
     
-    vector<thread> clients_threads;
+    // THREAD DO RECEIVE CONNECTIONS
+    thread t_accept_clients(acceptClients, server_socket);
     
-    while (true) {
-        // Accept incoming connections
-        int new_client_socket = accept(server_socket, nullptr, nullptr);
-        if (new_client_socket == -1) {
-            cerr << "[-] Error accepting connection" << endl;
-            continue;
-        }
+    thread t_broadcast_server(broadcastServerMessage, server_socket);    
+    
+    t_broadcast_server.join();
 
-        cout << "[+] Client connected: " << new_client_socket << endl;
+    client_sockets.clear();
 
-        // add new client to threads vector
-        // handle new client
-        clients_threads.emplace_back(handle_client, new_client_socket);
-    }
-
-
-    // CLOSE SOCKET
+    // CLOSE SERVER SOCKET
     close(server_socket);
-    
+
     return 0;
 }
