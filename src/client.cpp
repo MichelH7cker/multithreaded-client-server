@@ -1,10 +1,45 @@
 #include "client.hpp"
 
+void receiveMessage(int client_socket){
+    while (true){    
+        char message_rcv[1024];
+        
+        // RECEIVE MSG OF SERVER
+        ssize_t bytes_read = recv(client_socket, message_rcv, sizeof(message_rcv) - 1, 0);
+
+        // SERVER IS NOT RESPONDING  
+        if (bytes_read <= 0) {
+            cout << "[-] you have been disconnected or the server has been closed. sorry :(" << endl;
+            break;
+        }
+        message_rcv[bytes_read] = '\0';
+        printf("%s\n", message_rcv);
+    }
+}
+
+void sendMessage(int client_socket){
+    // COMMUNICATION WITH SERVER
+    char message_send[1024];
+    char message_rcv[1024];
+    
+    while (true){    
+        cin.getline(message_send, sizeof(message_send));
+
+        // SEND MSG TO SERVER
+        send(client_socket, message_send, strlen(message_send), 0);
+
+        // END CONNECTION
+        if (strcmp(message_send, "q") == 0) {
+            break;
+        }
+    }
+}
+
 int main(){
     // CREATE CLIENT SOCKET
     int client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket < 0) {
-        printf("[-] Socket creation error \n");
+        printf("[-] socket creation error \n");
         exit(EXIT_FAILURE);
     }
 
@@ -16,33 +51,23 @@ int main(){
 
     int connection_code = connect(client_socket, (struct sockaddr*)&address, sizeof(address));
     if (connection_code < 0){
-        perror("[-] Connection failed.\n");
+        perror("[-] connection failed.\n");
         exit(EXIT_FAILURE);
     }
-    printf("[+] Connected to server.\n");
+    printf("[+] connected to server.\n");
 
-     // COMMUNICATION WITH SERVER
-    char buffer[1024];
-    std::string message;
-    while (true) {
-        cout << "\t enter a message (or 'q' to quit): ";
-        cin.getline(buffer, sizeof(buffer));
+    char username[128];
+    std::cout << " * enter your username: ";
+    std::cin.getline(username, sizeof(username));
 
-        // SEND MSG TO SERVER
-        send(client_socket, buffer, strlen(buffer), 0);
+    // send the username to the server
+    write(client_socket, username, strlen(username));
 
-        if (strcmp(buffer, "q") == 0) {
-            break;
-        }
-
-        // Receive a response from the server
-        ssize_t bytesRead = recv(client_socket, buffer, sizeof(buffer), 0);
-        if (bytesRead <= 0) {
-            break;
-        }
-        buffer[bytesRead] = '\0';
-        std::cout << "Server response: " << buffer << std::endl;
-    }
+    cout << " * enter a message in any moment (or 'q' to disconnect)." << endl;
+    
+    thread (receiveMessage, client_socket).detach();
+    thread sendMsgThread(sendMessage, client_socket);
+    sendMsgThread.join();
 
     close(client_socket);
 }
