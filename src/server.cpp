@@ -7,6 +7,16 @@ vector<int> client_sockets;
 vector<thread> clients_threads;
 mutex mtx;
 
+bool CONNECTION_CLOSED;
+
+void shutdown(){
+    for (int client : client_sockets){
+	close(client);	
+    }
+    
+    client_sockets.clear();
+}
+
 void broadcastMessage(int server_socket, char *message) {
     size_t message_len = strlen(message);
     for (int client : client_sockets){
@@ -20,13 +30,20 @@ void broadcastServerMessage(int server_socket){
     while (true){
         cin.getline(buffer, 1024);
 
-        // FORMAT
+	if (strcmp("EXIT", buffer) == 0){
+	    char warning[] = " * Server will be disable!";
+	    broadcastMessage(server_socket, warning);
+	    close(server_socket);
+	    exit(0);
+	}
+
+	// FORMAT
         string response = " - [! ADM !]: " + (string) buffer;
         char message[response.length() + 1];
 
         // SEND MESSAGE
         broadcastMessage(server_socket, strcpy(message, response.c_str()));
-    }
+    } 
 }
 
 void handleClient(int client_socket, int server_socket){
@@ -121,17 +138,10 @@ int main(){
     }
     printf("[+] server is listening to connections...\n");
     
-    // THREAD DO RECEIVE CONNECTIONS
-    thread t_accept_clients(acceptClients, server_socket);
-    
     thread t_broadcast_server(broadcastServerMessage, server_socket);    
-    
-    t_broadcast_server.join();
 
-    client_sockets.clear();
-
-    // CLOSE SERVER SOCKET
-    close(server_socket);
+    // THREAD DO RECEIVE CONNECTIONS
+    acceptClients(server_socket);
 
     return 0;
 }
