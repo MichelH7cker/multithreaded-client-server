@@ -7,6 +7,14 @@ vector<int> client_sockets;
 vector<thread> clients_threads;
 mutex mtx;
 
+bool CONNECTION_CLOSED;
+
+void shutdown(){
+    for (int client : client_sockets){
+	close(client);	
+    }
+}
+
 void broadcastMessage(int server_socket, char *message) {
     size_t message_len = strlen(message);
     for (int client : client_sockets){
@@ -20,13 +28,19 @@ void broadcastServerMessage(int server_socket){
     while (true){
         cin.getline(buffer, 1024);
 
-        // FORMAT
+	if (strcmp("EXIT", buffer) == 0){
+	    shutdown();
+	    close(server_socket);
+	    return; 
+	}
+
+	// FORMAT
         string response = " - [! ADM !]: " + (string) buffer;
         char message[response.length() + 1];
 
         // SEND MESSAGE
         broadcastMessage(server_socket, strcpy(message, response.c_str()));
-    }
+    } 
 }
 
 void handleClient(int client_socket, int server_socket){
@@ -121,12 +135,16 @@ int main(){
     }
     printf("[+] server is listening to connections...\n");
     
-    // THREAD DO RECEIVE CONNECTIONS
-    thread t_accept_clients(acceptClients, server_socket);
-    
     thread t_broadcast_server(broadcastServerMessage, server_socket);    
+  
+    cout << "passou aqui" << endl;
     
+    // THREAD DO RECEIVE CONNECTIONS
+    acceptClients(server_socket);
+     
     t_broadcast_server.join();
+    
+    cout << "saiu daqui" << endl;
 
     client_sockets.clear();
 
