@@ -13,6 +13,8 @@ void shutdown(){
     for (int client : client_sockets){
 	close(client);	
     }
+    
+    client_sockets.clear();
 }
 
 void broadcastMessage(int server_socket, char *message) {
@@ -29,9 +31,10 @@ void broadcastServerMessage(int server_socket){
         cin.getline(buffer, 1024);
 
 	if (strcmp("EXIT", buffer) == 0){
-	    shutdown();
+	    char warning[] = " * Server will be disable!";
+	    broadcastMessage(server_socket, warning);
 	    close(server_socket);
-	    return; 
+	    exit(0);
 	}
 
 	// FORMAT
@@ -136,20 +139,9 @@ int main(){
     printf("[+] server is listening to connections...\n");
     
     thread t_broadcast_server(broadcastServerMessage, server_socket);    
-  
-    cout << "passou aqui" << endl;
-    
+
     // THREAD DO RECEIVE CONNECTIONS
     acceptClients(server_socket);
-     
-    t_broadcast_server.join();
-    
-    cout << "saiu daqui" << endl;
-
-    client_sockets.clear();
-
-    // CLOSE SERVER SOCKET
-    close(server_socket);
 
     return 0;
 }
