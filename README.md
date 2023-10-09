@@ -19,3 +19,6 @@ and for the client you must run
 ```
 ./client.o
 ```
+
+## OS and informations
+![neofetch](neofetch.jpg "neofetch")
