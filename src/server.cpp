@@ -13,7 +13,7 @@ void shutdown(){
     for (int client : client_sockets){
 	close(client);	
     }
-    
+            
     client_sockets.clear();
 }
 
@@ -36,7 +36,7 @@ void broadcastServerMessage(int server_socket){
 	    close(server_socket);
 	    exit(0);
 	}
-
+	
 	// FORMAT
         string response = " - [! ADM !]: " + (string) buffer;
         char message[response.length() + 1];
